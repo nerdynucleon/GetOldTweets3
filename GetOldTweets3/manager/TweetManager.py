@@ -4,6 +4,7 @@ import json, re, datetime, sys, random, http.cookiejar
 import urllib.request, urllib.parse, urllib.error
 from pyquery import PyQuery
 from .. import models
+import time
 
 class TweetManager:
     """A class for accessing the Twitter's search engine"""
@@ -351,14 +352,23 @@ class TweetManager:
             print(url)
             print('\n'.join(h[0]+': '+h[1] for h in headers))
 
-        try:
-            response = opener.open(url)
-            jsonResponse = response.read()
-        except Exception as e:
-            print("An error occured during an HTTP request:", str(e))
-            print("Try to open in browser: https://twitter.com/search?q=%s&src=typd" % urllib.parse.quote(urlGetData))
-            sys.exit()
-
+        jsonResponse = None
+        backoff = -1
+        while jsonResponse == None:
+            try:
+                if backoff > 0:
+                    print('Using exponential backoff' + str(2 ** backoff))
+                    time.sleep(2 ** backoff)
+                response = opener.open(url)
+                jsonResponse = response.read()
+            except Exception as e:
+                print("An error occured during an HTTP request:", str(e))
+                print("Try to open in browser: https://twitter.com/search?q=%s&src=typd" % urllib.parse.quote(urlGetData))
+                if '429' in e.headers['status']:
+                    backoff += 1
+                else:
+                    sys.exit()
+            
         try:
             s_json = jsonResponse.decode()
         except:
